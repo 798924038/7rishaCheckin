@@ -622,6 +622,8 @@ class Checker:
     def __init__(self, config: Config):
         self.config = config
         self.results: List[ClaimResult] = []
+        # 任一账号出现会话级失败（登录失效 / 请求被拒 / 缺登录字段）即置位，用于在推送里追加提醒
+        self.session_expired: bool = False
 
     def _log(self, cookie_idx: int, task: str, emoji: str, message: str, force: bool = False) -> None:
         if self.config.verbose or force:
@@ -638,6 +640,7 @@ class Checker:
 
             with API(cookie, cookie_idx, verbose=self.config.verbose) as api:
                 if not api.warmup():
+                    self.session_expired = True
                     self.results.append(
                         ActionResult(cookie_idx, "整账号", status="已跳过", message="登录态无效")
                     )
@@ -662,6 +665,7 @@ class Checker:
 
                     # 登录态一旦失效，后续动作不必再打请求
                     if raw.get("auth_error"):
+                        self.session_expired = True
                         self._log(cookie_idx, label, LogEmoji.SKIP, "登录态失效，跳过该账号剩余动作", force=True)
                         break
 
@@ -729,6 +733,8 @@ class Checker:
             "success": success_count,
             "fail": fail_count,
             "repeat": repeat_count,
+            # 仅在会话失效时出现，日常成功推送不会多这一行
+            "note": f"{LogEmoji.WARNING} Cookie 已失效，请重新登录后更新 COOKIES" if self.session_expired else "",
         }
 
 
