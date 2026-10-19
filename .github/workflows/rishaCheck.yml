@@ -1,0 +1,64 @@
+name: risha checkin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+    paths-ignore:
+      - 'README.md'
+      - 'imgs/**'
+  schedule:
+    # 北京时间 00:17 与 08:17：零点后立刻领，早上再兜底一次；避开整点排队高峰
+    - cron: '17 0,8 * * *'
+      timezone: 'Asia/Shanghai'
+
+jobs:
+  build:
+    name: 7risha daily task checkin
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: write
+
+    strategy:
+      matrix:
+        python-version: [3.13]
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Running checkin
+      run: |
+        python checkin.py
+      env:
+        COOKIES: ${{ secrets.COOKIES }}
+        VERBOSE: ${{ secrets.VERBOSE }}
+        PUSHDEER_SENDKEY: ${{ secrets.PUSHDEER_SENDKEY }}
+        SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+
+    - name: Keep alive
+      uses: liskin/gh-workflow-keepalive@v1
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        retain_days: 7
+        keep_minimum_runs: 7
+        delete_run_by_conclusion_pattern: success
