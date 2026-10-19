@@ -1,41 +1,8 @@
 # 7risha 自动签到
 
 > 基于 GitHub Actions 的 [www.7risha.com](https://www.7risha.com) 每日任务奖励自动领取工具，支持多账号与多通道推送（PushDeer / Server酱）。
-
-## 原理
-
-站点是 WordPress + LightSNS 主题，签到与任务奖励都是普通 AJAX 接口，脚本按顺序执行三个动作：
-
-| 顺序 | 动作 | 接口 | 表单 |
-|---|---|---|---|
-| 1 | 每日签到 | `POST /wp-content/themes/LightSNS/module/action/sign.php` | `sign=1&ticket=&randstr=` |
-| 2 | 任务一 | `POST /wp-content/themes/LightSNS/module/action/task.php` | `task_id=task007&type=day` |
-| 3 | 任务二 | 同上 | `task_id=task009&type=day` |
-
-```json
-{"code":1,"msg":"签到成功","sign_c":45,"text":"今日已签到"}
-{"code":1,"msg":"奖励领取成功！","task":35}
-```
-
-> 这两个字段都不参与展示：`task` **不是**奖励额度（奖励是固定的），`sign_c` 是累计签到天数（只写日志）。脚本只取 `code` 与 `msg` 做判定。
-
-脚本做的事就是：**带上你浏览器里的登录 Cookie，按「签到 → 007 → 009」的顺序各 POST 一次，每次间隔 5 秒**。没有模拟点击，没有浏览器自动化，纯 HTTP 请求。
-
-动作顺序、任务 ID、间隔都是代码里的常量（`Config.SIGN_ENABLED` / `Config.TASKS` / `Config.ACTION_INTERVAL`），不需要也没法用环境变量覆盖。
-
-登录态来自 WordPress 的 `wordpress_logged_in_<hash>` cookie——它是 `用户名|过期时间|token|HMAC` 的 URL 编码形式，服务端验签通过即视为已登录。所以**这条 Cookie 等价于账号密码**。
-
-## 与原 GLaDOS 版的差异
-
-| 维度 | GLaDOS 版 | 本项目 |
-|---|---|---|
-| 登录态 | `koa:sess` + 签名 | `wordpress_logged_in_<hash>` |
-| 签到动作 | 单个 `/api/user/checkin` | 多个 `task_id` 逐个领取 |
-| 站点 | 双域名 `glados.cloud` / `railgun.info` | 单站点 `www.7risha.com` |
-| 成功返回码 | `code == 0` | `code == 1` |
-| 附加请求头 | 设备 UA 需匹配 | 需 `X-Requested-With` + `Origin`/`Referer` |
-| 积分兑换 | 支持 `plan100/200/500` | 无此概念，已移除 |
-| 设备自适应 | `device-mismatch` 换 UA 重试 | 无此机制，已移除 |
+>
+> 本项目修改自 **Glados-Railgun-checkin**，代码改造与文档均由 AI 完成。
 
 ## 文件结构
 
@@ -108,7 +75,7 @@
 |---|---|---|
 | `code == 1` | 签到成功 / 领取成功 | `✅ 签到成功`、`✅ 领取成功  task007` |
 | `msg` 含"已签到" | 已签到 | `🔄 已签到` |
-| `msg` 含"已领取/已完成/重复/领取过" | 重复领取 | `🔄 重复领取  task010  · 已领取` |
+| `msg` 含"已领取/已完成/重复/领取过" | 重复领取 | `🔄 重复领取  task009  · 已领取` |
 | `msg` 含"未完成/没有完成" | 领取失败 | `🔴 领取失败  task009  · 任务未完成` |
 | `msg` 含"登录/登陆/无权限/未授权" | 登录失效 | `🔴 登录失效`，并**中断该账号剩余动作** |
 | `msg` 含"非法请求/非法操作/请求异常" | 请求被拒 | `🔴 请求被拒`，同上中断 |
@@ -133,20 +100,6 @@
 #2  ✅  领取成功  task007
 #3  🔴  领取失败  task009  · 任务未完成
 ```
-
-## 本地调试
-
-不想等定时任务，可以本地跑一次（先 `pip install -r requirements.txt`）：
-
-```shell
-# Linux / macOS
-COOKIES='粘贴你的 Cookie' SERVERCHAN_SENDKEY='SCT...' python checkin.py
-
-# Windows PowerShell
-$env:COOKIES='粘贴你的 Cookie'; $env:SERVERCHAN_SENDKEY='SCT...'; python checkin.py
-```
-
-加 `VERBOSE=true` 可以看到每次请求的原始响应，排查接口字段变化时很有用。
 
 ## 常见问题
 
